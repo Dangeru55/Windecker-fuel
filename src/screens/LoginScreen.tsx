@@ -96,6 +96,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.primary },
   inner: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28, paddingVertical: 40 },
   card: {
+    width: '100%',
+    maxWidth: 400,
+    alignSelf: 'center',
     backgroundColor: COLORS.white,
     borderRadius: 20,
     overflow: 'hidden',
