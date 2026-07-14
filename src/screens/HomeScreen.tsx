@@ -3,6 +3,7 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   TextInput, Modal, ActivityIndicator, RefreshControl,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { COLORS } from '../constants';
 import { Product } from '../types';
@@ -12,17 +13,18 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: (p: Product)
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <View>
-          <Text style={styles.productName}>{product.name}</Text>
+        <View style={styles.cardInfo}>
           <Text style={styles.category}>{product.category}</Text>
+          <Text style={styles.productName}>{product.name}</Text>
+          <Text style={styles.description}>{product.description}</Text>
         </View>
         <View style={styles.priceBox}>
           <Text style={styles.price}>${product.price.toFixed(2)}</Text>
-          <Text style={styles.unit}>/{product.unit}</Text>
+          <Text style={styles.unit}>per {product.unit}</Text>
         </View>
       </View>
-      <Text style={styles.description}>{product.description}</Text>
-      <TouchableOpacity style={styles.addBtn} onPress={() => onAdd(product)}>
+      <TouchableOpacity style={styles.addBtn} onPress={() => onAdd(product)} activeOpacity={0.8}>
+        <Ionicons name="add" size={18} color={COLORS.white} />
         <Text style={styles.addBtnText}>Add to Order</Text>
       </TouchableOpacity>
     </View>
@@ -57,42 +59,54 @@ export default function HomeScreen() {
     showAlert('Added!', `${qty} ${selectedProduct!.unit}s of ${selectedProduct!.name} added to cart`);
   };
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.welcome}>
-        <Text style={styles.welcomeText}>Welcome back, {user?.name?.split(' ')[0]}!</Text>
-        <Text style={styles.companyText}>{user?.company}</Text>
-        <View style={styles.priceStatusRow}>
-          {pricesLoading ? (
-            <ActivityIndicator size="small" color="rgba(255,255,255,0.8)" style={{ marginRight: 6 }} />
-          ) : (
-            <Text style={styles.priceDot}>●</Text>
-          )}
-          <Text style={styles.priceStatusText}>
-            {pricesLoading ? 'Fetching latest prices...' : priceStatus}
-          </Text>
-          {!pricesLoading && (
-            <TouchableOpacity onPress={refreshPrices} style={styles.refreshBtn}>
-              <Text style={styles.refreshBtnText}>↻ Refresh</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+  const ListHeader = (
+    <View>
+      <Text style={styles.greeting}>Hi, {user?.name?.split(' ')[0]}</Text>
+      <Text style={styles.company}>{user?.company}</Text>
+
+      <View style={styles.priceStatusRow}>
+        {pricesLoading ? (
+          <ActivityIndicator size="small" color={COLORS.primary} style={{ marginRight: 6 }} />
+        ) : (
+          <View style={styles.liveDot} />
+        )}
+        <Text style={styles.priceStatusText}>
+          {pricesLoading ? 'Fetching latest prices…' : priceStatus}
+        </Text>
+        {!pricesLoading && (
+          <TouchableOpacity onPress={refreshPrices} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="refresh" size={16} color={COLORS.primary} />
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.searchBox}>
-        <Text style={styles.searchIcon}>🔍</Text>
+        <Ionicons name="search" size={18} color={COLORS.textSecondary} style={{ marginRight: 8 }} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search fuel products..."
+          placeholder="Search fuel products"
+          placeholderTextColor={COLORS.textSecondary}
           value={search}
           onChangeText={setSearch}
         />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')}>
+            <Ionicons name="close-circle" size={18} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+        )}
       </View>
 
+      <Text style={styles.sectionTitle}>Products</Text>
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => <ProductCard product={item} onAdd={handleAdd} />}
+        ListHeaderComponent={ListHeader}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -100,7 +114,6 @@ export default function HomeScreen() {
             refreshing={pricesLoading}
             onRefresh={refreshPrices}
             tintColor={COLORS.primary}
-            title="Refreshing prices..."
           />
         }
       />
@@ -108,9 +121,10 @@ export default function HomeScreen() {
       <Modal visible={!!selectedProduct} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
+            <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>{selectedProduct?.name}</Text>
             <Text style={styles.modalPrice}>
-              ${selectedProduct?.price.toFixed(2)} / {selectedProduct?.unit}
+              ${selectedProduct?.price.toFixed(2)} per {selectedProduct?.unit}
             </Text>
             <Text style={styles.modalLabel}>Quantity ({selectedProduct?.unit}s)</Text>
             <TextInput
@@ -122,17 +136,18 @@ export default function HomeScreen() {
             />
             {quantity ? (
               <Text style={styles.modalTotal}>
-                Subtotal: ${((selectedProduct?.price ?? 0) * parseInt(quantity || '0')).toFixed(2)}
+                Subtotal ${((selectedProduct?.price ?? 0) * parseInt(quantity || '0')).toFixed(2)}
               </Text>
             ) : null}
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalBtn, styles.cancelBtn]}
                 onPress={() => setSelectedProduct(null)}
+                activeOpacity={0.8}
               >
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalBtn, styles.confirmBtn]} onPress={confirmAdd}>
+              <TouchableOpacity style={[styles.modalBtn, styles.confirmBtn]} onPress={confirmAdd} activeOpacity={0.8}>
                 <Text style={styles.confirmBtnText}>Add to Cart</Text>
               </TouchableOpacity>
             </View>
@@ -145,92 +160,113 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  welcome: { backgroundColor: COLORS.primary, padding: 20, paddingTop: 16 },
-  welcomeText: { fontSize: 20, fontWeight: 'bold', color: COLORS.white },
-  companyText: { fontSize: 14, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
-  priceStatusRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
-  priceDot: { fontSize: 8, color: COLORS.success, marginRight: 6 },
-  priceStatusText: { fontSize: 12, color: 'rgba(255,255,255,0.75)', flex: 1 },
-  refreshBtn: { marginLeft: 8, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' },
-  refreshBtnText: { fontSize: 11, color: 'rgba(255,255,255,0.85)', fontWeight: '600' },
+  list: { paddingHorizontal: 20, paddingBottom: 24, maxWidth: 640, width: '100%', alignSelf: 'center' },
+
+  greeting: { fontSize: 30, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8, marginTop: 8 },
+  company: { fontSize: 15, color: COLORS.textSecondary, marginTop: 2 },
+
+  priceStatusRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
+  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: COLORS.success, marginRight: 7 },
+  priceStatusText: { fontSize: 13, color: COLORS.textSecondary, flex: 1 },
+
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    margin: 16,
-    backgroundColor: COLORS.white,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    marginTop: 16,
+    backgroundColor: COLORS.muted,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 46,
   },
-  searchIcon: { fontSize: 16, marginRight: 8 },
-  searchInput: { flex: 1, paddingVertical: 12, fontSize: 15, color: COLORS.text },
-  list: { paddingHorizontal: 16, paddingBottom: 16 },
+  searchInput: { flex: 1, fontSize: 15, color: COLORS.text },
+
+  sectionTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text, letterSpacing: -0.4, marginTop: 24, marginBottom: 12 },
+
   card: {
     backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 18,
+    padding: 18,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
   },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  productName: { fontSize: 16, fontWeight: 'bold', color: COLORS.text },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
+  cardInfo: { flex: 1, paddingRight: 12 },
   category: {
-    fontSize: 12,
-    color: COLORS.primaryLight,
-    fontWeight: '600',
-    marginTop: 2,
+    fontSize: 11,
+    color: COLORS.primary,
+    fontWeight: '700',
+    letterSpacing: 1,
     textTransform: 'uppercase',
+    marginBottom: 4,
   },
+  productName: { fontSize: 17, fontWeight: '700', color: COLORS.text, letterSpacing: -0.3 },
+  description: { fontSize: 13, color: COLORS.textSecondary, marginTop: 4, lineHeight: 19 },
   priceBox: { alignItems: 'flex-end' },
-  price: { fontSize: 20, fontWeight: 'bold', color: COLORS.primary },
-  unit: { fontSize: 12, color: COLORS.textSecondary },
-  description: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 12, lineHeight: 18 },
+  price: { fontSize: 20, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
+  unit: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+
   addBtn: {
+    flexDirection: 'row',
     backgroundColor: COLORS.primary,
-    borderRadius: 8,
-    padding: 10,
+    borderRadius: 24,
+    height: 44,
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
-  addBtnText: { color: COLORS.white, fontWeight: '600', fontSize: 14 },
+  addBtnText: { color: COLORS.white, fontWeight: '700', fontSize: 14 },
+
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'flex-end',
   },
   modal: {
     backgroundColor: COLORS.white,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     padding: 24,
     paddingBottom: 40,
+    maxWidth: 640,
+    width: '100%',
+    alignSelf: 'center',
   },
-  modalTitle: { fontSize: 22, fontWeight: 'bold', color: COLORS.text, marginBottom: 4 },
-  modalPrice: { fontSize: 16, color: COLORS.primary, marginBottom: 20 },
-  modalLabel: { fontSize: 14, fontWeight: '600', color: COLORS.text, marginBottom: 8 },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.border,
+    alignSelf: 'center',
+    marginBottom: 18,
+  },
+  modalTitle: { fontSize: 22, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5, marginBottom: 4 },
+  modalPrice: { fontSize: 15, color: COLORS.textSecondary, marginBottom: 22 },
+  modalLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 8 },
   modalInput: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 24,
-    fontWeight: 'bold',
+    backgroundColor: COLORS.muted,
+    borderRadius: 14,
+    padding: 14,
+    fontSize: 26,
+    fontWeight: '700',
     color: COLORS.text,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   modalTotal: {
     textAlign: 'center',
-    fontSize: 16,
-    color: COLORS.success,
-    fontWeight: '600',
-    marginBottom: 16,
+    fontSize: 15,
+    color: COLORS.primary,
+    fontWeight: '700',
+    marginBottom: 14,
   },
   modalButtons: { flexDirection: 'row', gap: 12, marginTop: 8 },
-  modalBtn: { flex: 1, borderRadius: 10, padding: 14, alignItems: 'center' },
-  cancelBtn: { backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border },
+  modalBtn: { flex: 1, borderRadius: 24, height: 48, alignItems: 'center', justifyContent: 'center' },
+  cancelBtn: { backgroundColor: COLORS.muted },
   cancelBtnText: { color: COLORS.text, fontWeight: '600' },
   confirmBtn: { backgroundColor: COLORS.primary },
-  confirmBtnText: { color: COLORS.white, fontWeight: 'bold', fontSize: 15 },
+  confirmBtnText: { color: COLORS.white, fontWeight: '700', fontSize: 15 },
 });
