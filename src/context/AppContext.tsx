@@ -1,8 +1,21 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, CartItem, Order, Product } from '../types';
-import { MOCK_USERS, MOCK_ORDERS, MOCK_PRODUCTS, PASSWORD } from '../constants';
-import { fetchLivePrices, formatLastUpdated, ProductPrice } from '../services/priceService';
+import { MOCK_ORDERS, MOCK_PRODUCTS } from '../constants';
+import { fetchLivePrices, formatLastUpdated, invalidatePriceCache, ProductPrice } from '../services/priceService';
+import * as authService from '../services/authService';
+
+// CRM customer -> app User. One login per company: `name` is the company
+// name (not a person), so screens greeting "the user" should read it as such.
+function toAppUser(customer: authService.PortalCustomer): User {
+  return {
+    id: String(customer.id),
+    name: customer.name,
+    email: customer.email,
+    company: customer.name,
+    phone: customer.phone ?? '',
+  };
+}
 
 interface AppContextType {
   user: User | null;
@@ -33,11 +46,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [priceStatus, setPriceStatus] = useState('');
   const [pricesLoading, setPricesLoading] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
 
-  const refreshPrices = async () => {
+  const refreshPrices = async (authToken?: string) => {
+    const t = authToken ?? token;
+    if (!t) return; // no session yet — nothing to price
     setPricesLoading(true);
     try {
-      const { prices, source, lastUpdated } = await fetchLivePrices();
+      const { prices, source, lastUpdated } = await fetchLivePrices(t);
       if (prices.length > 0) {
         // Merge live prices into products
         setProducts((prev) =>
@@ -60,15 +76,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    AsyncStorage.getItem('user').then((data) => {
-      if (data) setUser(JSON.parse(data));
+    // Restore session: a stored token means we're logged in as a customer —
+    // re-validate it against the CRM rather than trusting a cached user object.
+    authService.getToken().then(async (t) => {
+      if (!t) return;
+      const customer = await authService.fetchMe(t);
+      if (customer) {
+        setToken(t);
+        setUser(toAppUser(customer));
+        refreshPrices(t);
+      } else {
+        await authService.logout(); // token expired/revoked
+      }
     });
     AsyncStorage.getItem('cart')
       .then((data) => {
         if (data) setCart(JSON.parse(data));
       })
       .finally(() => setHydrated(true));
-    refreshPrices();
   }, []);
 
   // Persist the cart on every change. Gated on `hydrated` so the initial empty
@@ -78,21 +103,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [cart, hydrated]);
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    const found = MOCK_USERS.find(
-      (u) => u.email.toLowerCase() === email.toLowerCase() && password === PASSWORD
-    );
-    if (found) {
-      setUser(found);
-      await AsyncStorage.setItem('user', JSON.stringify(found));
+    try {
+      const customer = await authService.login(email, password);
+      const t = await authService.getToken();
+      setToken(t);
+      setUser(toAppUser(customer));
+      if (t) refreshPrices(t);
       return true;
+    } catch {
+      return false;
     }
-    return false;
   };
 
   const logout = () => {
     setUser(null);
+    setToken(null);
     setCart([]); // the persist effect writes the emptied cart through to storage
-    AsyncStorage.removeItem('user');
+    setProducts(MOCK_PRODUCTS); // clear the previous customer's resolved prices
+    authService.logout();
+    invalidatePriceCache(); // a different company logging in on this device must not see stale prices
   };
 
   // Functional updates throughout: callers may invoke these in a loop (e.g. reorder

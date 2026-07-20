@@ -9,8 +9,8 @@ import { showAlert } from '../utils/alert';
 
 export default function LoginScreen() {
   const { login } = useApp();
-  const [email, setEmail] = useState('john@example.com');
-  const [password, setPassword] = useState('password');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
@@ -78,11 +78,6 @@ export default function LoginScreen() {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.createBtn}>
-              <Text style={styles.createBtnText}>Create Account</Text>
-            </TouchableOpacity>
-
-            <Text style={styles.hint}>Demo: john@example.com / password</Text>
           </View>
         </View>
 

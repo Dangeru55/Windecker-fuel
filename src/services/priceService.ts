@@ -1,16 +1,14 @@
 /**
  * Price Service
- * Fetches live fuel prices from the Windecker CRM backend.
- * Falls back to cached or default prices if offline.
- *
- * To connect live data: set API_BASE_URL to your CRM backend URL
- * and ensure the /api/prices endpoint returns ProductPrice[].
+ * Fetches the logged-in customer's own delivered prices from the CRM
+ * (rack + freight band x FSC + margin, cheapest terminal — computed
+ * server-side; the app never sees cost internals). Falls back to cached
+ * prices if offline.
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// ── Config ──────────────────────────────────────────────────────────────────
-const API_BASE_URL = 'https://windecker-crm.up.railway.app';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://windecker-crm.up.railway.app';
 const CACHE_KEY = 'fuel_prices_cache';
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // refresh every 6 hours
 
@@ -26,12 +24,16 @@ interface PriceCache {
 }
 
 // ── Fetch from API ───────────────────────────────────────────────────────────
-async function fetchFromAPI(): Promise<ProductPrice[]> {
-  const res = await fetch(`${API_BASE_URL}/api/prices`, {
-    headers: { 'Content-Type': 'application/json' },
+async function fetchFromAPI(token: string): Promise<ProductPrice[]> {
+  const res = await fetch(`${API_BASE_URL}/api/customer/prices`, {
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error(`Price API returned ${res.status}`);
-  return res.json();
+  const data = await res.json();
+  return (data.prices as { id: string; price: number }[]).map((p) => ({
+    ...p,
+    updatedAt: data.updatedAt,
+  }));
 }
 
 // ── Cache helpers ────────────────────────────────────────────────────────────
@@ -51,15 +53,14 @@ async function saveCache(prices: ProductPrice[]) {
 
 // ── Main export ──────────────────────────────────────────────────────────────
 /**
- * Returns live prices (from API or fresh cache).
- * Falls back to stale cache or null if completely offline.
+ * Returns the logged-in customer's live prices (from API or fresh cache).
+ * Falls back to stale cache or empty if completely offline.
  */
-export async function fetchLivePrices(): Promise<{
+export async function fetchLivePrices(token: string): Promise<{
   prices: ProductPrice[];
   source: 'live' | 'cache' | 'offline';
   lastUpdated: Date | null;
 }> {
-  // Check cache freshness
   const cached = await getCached();
   const cacheAge = cached ? Date.now() - cached.fetchedAt : Infinity;
 
@@ -67,13 +68,11 @@ export async function fetchLivePrices(): Promise<{
     return { prices: cached.prices, source: 'cache', lastUpdated: new Date(cached.fetchedAt) };
   }
 
-  // Try live fetch
   try {
-    const prices = await fetchFromAPI();
+    const prices = await fetchFromAPI(token);
     await saveCache(prices);
     return { prices, source: 'live', lastUpdated: new Date() };
   } catch {
-    // Return stale cache if available
     if (cached) {
       return { prices: cached.prices, source: 'cache', lastUpdated: new Date(cached.fetchedAt) };
     }
