@@ -14,6 +14,8 @@ const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // refresh every 6 hours
 
 export interface ProductPrice {
   id: string;
+  name: string;
+  unit: string;
   price: number;
   updatedAt: string; // ISO date string
 }
@@ -30,7 +32,7 @@ async function fetchFromAPI(token: string): Promise<ProductPrice[]> {
   });
   if (!res.ok) throw new Error(`Price API returned ${res.status}`);
   const data = await res.json();
-  return (data.prices as { id: string; price: number }[]).map((p) => ({
+  return (data.prices as { id: string; name: string; unit: string; price: number }[]).map((p) => ({
     ...p,
     updatedAt: data.updatedAt,
   }));

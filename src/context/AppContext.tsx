@@ -17,6 +17,49 @@ function toAppUser(customer: authService.PortalCustomer): User {
   };
 }
 
+// Cosmetic copy (category + description) for products not in the original
+// hardcoded set. The CRM is the source of truth for WHICH products exist and
+// their prices — new products (e.g. a renewable blend added mid-season)
+// should appear automatically without an app update, just with generic copy
+// until someone writes something nicer.
+function deriveCopy(name: string): { category: string; description: string } {
+  const n = name.toLowerCase();
+  // Check renewable/bio before the generic "dyed" match — "R99 Dyed" is a
+  // renewable diesel variant, not off-road diesel, even though it contains "dyed".
+  if (n.includes('r99') || n.includes('r95') || n.includes('renew'))
+    return { category: 'Renewable Diesel', description: 'Renewable diesel blend' };
+  if (n.includes('off-road') || n.includes('off road') || n.includes('dyed'))
+    return { category: 'Diesel', description: 'Dyed diesel for off-road equipment, tax exempt' };
+  if (n.includes('diesel') || n.includes('dsl'))
+    return { category: 'Diesel', description: 'Diesel fuel for trucks and equipment' };
+  if (n.includes('b20') || n.includes('b99') || n.includes('bio'))
+    return { category: 'Biodiesel', description: 'Biodiesel blend' };
+  if (n.includes('regular') || n.includes('premium') || n.includes('mid') || n.includes('unleaded'))
+    return { category: 'Gasoline', description: 'Gasoline for vehicles and equipment' };
+  if (n.includes('propane')) return { category: 'Propane', description: 'LP gas for heating and equipment' };
+  if (n.includes('def')) return { category: 'Additives', description: 'Diesel exhaust fluid for emissions compliance' };
+  return { category: 'Fuel', description: name };
+}
+
+// Build the app's product list directly from the customer's live prices
+// (the CRM's source-of-truth catalog), instead of only overlaying price onto
+// a fixed hardcoded list. Products priced in the CRM but missing from
+// MOCK_PRODUCTS (e.g. renewable blends added after this app shipped) were
+// previously dropped silently — this makes anything priced show up.
+function buildProductsFromPrices(prices: ProductPrice[]): Product[] {
+  return prices.map((p) => {
+    const known = MOCK_PRODUCTS.find((mp) => mp.id === p.id);
+    const copy = known ? { category: known.category, description: known.description } : deriveCopy(p.name ?? '');
+    return {
+      id: p.id,
+      name: p.name ?? known?.name ?? `Product ${p.id}`,
+      unit: p.unit ?? known?.unit ?? 'gallon',
+      price: p.price,
+      ...copy,
+    };
+  });
+}
+
 interface AppContextType {
   user: User | null;
   cart: CartItem[];
@@ -56,13 +99,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const { prices, source, lastUpdated } = await fetchLivePrices(t);
       if (prices.length > 0) {
-        // Merge live prices into products
-        setProducts((prev) =>
-          prev.map((p) => {
-            const live = prices.find((lp: ProductPrice) => lp.id === p.id);
-            return live ? { ...p, price: live.price } : p;
-          })
-        );
+        setProducts(buildProductsFromPrices(prices));
       }
       setPriceStatus(
         source === 'offline'
