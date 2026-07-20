@@ -26,6 +26,7 @@ interface AppContextType {
   pricesLoading: boolean;
   refreshPrices: () => Promise<void>;
   login: (email: string, password: string) => Promise<boolean>;
+  createAccount: (email: string, password: string) => Promise<void>;
   logout: () => void;
   addToCart: (product: Product, quantity: number) => void;
   removeFromCart: (productId: string) => void;
@@ -115,6 +116,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Unlike login, throws with a specific message (email not whitelisted /
+  // already claimed / etc.) so the screen can show exactly what went wrong.
+  const createAccount = async (email: string, password: string): Promise<void> => {
+    const customer = await authService.createAccount(email, password);
+    const t = await authService.getToken();
+    setToken(t);
+    setUser(toAppUser(customer));
+    if (t) refreshPrices(t);
+  };
+
   const logout = () => {
     setUser(null);
     setToken(null);
@@ -173,7 +184,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider
       value={{
         user, cart, orders, products, priceStatus, pricesLoading, refreshPrices,
-        login, logout, addToCart, removeFromCart, updateCartQuantity, clearCart,
+        login, createAccount, logout, addToCart, removeFromCart, updateCartQuantity, clearCart,
         placeOrder, cartTotal, cartCount,
       }}
     >

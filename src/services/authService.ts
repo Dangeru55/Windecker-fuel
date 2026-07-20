@@ -36,6 +36,26 @@ export async function login(email: string, password: string): Promise<PortalCust
   return data.customer;
 }
 
+/**
+ * Self-serve activation: the customer's email must already be whitelisted
+ * by a Windecker manager in the CRM (with no password claimed yet). Sets
+ * their own password and logs them in.
+ */
+export async function createAccount(email: string, password: string): Promise<PortalCustomer> {
+  const res = await fetch(`${API_BASE_URL}/api/customer-auth/create-account`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || 'Could not create account');
+  }
+  const data: LoginResponse = await res.json();
+  await AsyncStorage.setItem(TOKEN_KEY, data.token);
+  return data.customer;
+}
+
 export async function logout() {
   await AsyncStorage.removeItem(TOKEN_KEY);
 }

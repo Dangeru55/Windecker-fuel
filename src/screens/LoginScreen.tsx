@@ -8,9 +8,11 @@ import { COLORS } from '../constants';
 import { showAlert } from '../utils/alert';
 
 export default function LoginScreen() {
-  const { login } = useApp();
+  const { login, createAccount } = useApp();
+  const [mode, setMode] = useState<'signin' | 'create'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
@@ -22,6 +24,35 @@ export default function LoginScreen() {
     const success = await login(email.trim(), password);
     setLoading(false);
     if (!success) showAlert('Login Failed', 'Invalid email or password');
+  };
+
+  const handleCreateAccount = async () => {
+    if (!email || !password || !confirmPassword) {
+      showAlert('Error', 'Please fill in all fields');
+      return;
+    }
+    if (password.length < 8) {
+      showAlert('Error', 'Password must be at least 8 characters');
+      return;
+    }
+    if (password !== confirmPassword) {
+      showAlert('Error', 'Passwords do not match');
+      return;
+    }
+    setLoading(true);
+    try {
+      await createAccount(email.trim(), password);
+    } catch (err) {
+      showAlert('Could Not Create Account', err instanceof Error ? err.message : 'Please try again');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const switchMode = (next: 'signin' | 'create') => {
+    setMode(next);
+    setPassword('');
+    setConfirmPassword('');
   };
 
   return (
@@ -43,41 +74,98 @@ export default function LoginScreen() {
 
           {/* Form below — connected directly to logo banner */}
           <View style={styles.form}>
-            <Text style={styles.heading}>Sign in</Text>
-            <Text style={styles.subtitle}>Use your Windecker account to sign in</Text>
+            {mode === 'signin' ? (
+              <>
+                <Text style={styles.heading}>Sign in</Text>
+                <Text style={styles.subtitle}>Use your Windecker account to sign in</Text>
 
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@windeckerfuel.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
+                <Text style={styles.label}>Email</Text>
+                <TextInput
+                  style={styles.input}
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="you@windeckerfuel.com"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
 
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="••••••••"
-              secureTextEntry
-            />
+                <Text style={styles.label}>Password</Text>
+                <TextInput
+                  style={styles.input}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="••••••••"
+                  secureTextEntry
+                />
 
-            <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
-              onPress={handleLogin}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color={COLORS.white} />
-              ) : (
-                <Text style={styles.buttonText}>Sign In</Text>
-              )}
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.button, loading && styles.buttonDisabled]}
+                  onPress={handleLogin}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator color={COLORS.white} />
+                  ) : (
+                    <Text style={styles.buttonText}>Sign In</Text>
+                  )}
+                </TouchableOpacity>
 
+                <TouchableOpacity style={styles.createBtn} onPress={() => switchMode('create')} disabled={loading}>
+                  <Text style={styles.createBtnText}>Create Account</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.heading}>Create Account</Text>
+                <Text style={styles.subtitle}>Use the email Windecker has on file for your company</Text>
+
+                <Text style={styles.label}>Email</Text>
+                <TextInput
+                  style={styles.input}
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="you@windeckerfuel.com"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+
+                <Text style={styles.label}>Create Password</Text>
+                <TextInput
+                  style={styles.input}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="At least 8 characters"
+                  secureTextEntry
+                />
+
+                <Text style={styles.label}>Confirm Password</Text>
+                <TextInput
+                  style={styles.input}
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  placeholder="••••••••"
+                  secureTextEntry
+                />
+
+                <TouchableOpacity
+                  style={[styles.button, loading && styles.buttonDisabled]}
+                  onPress={handleCreateAccount}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator color={COLORS.white} />
+                  ) : (
+                    <Text style={styles.buttonText}>Create Account</Text>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.createBtn} onPress={() => switchMode('signin')} disabled={loading}>
+                  <Text style={styles.createBtnText}>Back to Sign In</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
 
