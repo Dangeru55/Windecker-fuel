@@ -32,7 +32,10 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: (p: Product)
 }
 
 export default function HomeScreen() {
-  const { user, addToCart, products, priceStatus, pricesLoading, refreshPrices } = useApp();
+  const {
+    user, addToCart, products, priceStatus, pricesLoading, refreshPrices,
+    destinations, destinationId, selectDestination,
+  } = useApp();
   const [search, setSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState('100');
@@ -79,6 +82,31 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Only shown to multi-site customers: each site has its own freight and
+          margin, so the price depends on where it's being delivered. */}
+      {destinations.length > 1 && (
+        <View style={styles.destSection}>
+          <Text style={styles.destLabel}>Delivering to</Text>
+          <View style={styles.destRow}>
+            {destinations.map((d) => {
+              const active = d.id === destinationId;
+              return (
+                <TouchableOpacity
+                  key={d.id}
+                  onPress={() => !active && selectDestination(d.id)}
+                  style={[styles.destChip, active && styles.destChipActive]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.destChipText, active && styles.destChipTextActive]}>
+                    {d.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      )}
 
       <View style={styles.searchBox}>
         <Ionicons name="search" size={18} color={COLORS.textSecondary} style={{ marginRight: 8 }} />
@@ -168,6 +196,28 @@ const styles = StyleSheet.create({
   priceStatusRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: COLORS.success, marginRight: 7 },
   priceStatusText: { fontSize: 13, color: COLORS.textSecondary, flex: 1 },
+
+  destSection: { marginTop: 18 },
+  destLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  destRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  destChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: COLORS.muted,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  destChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  destChipText: { fontSize: 13, color: COLORS.text, fontWeight: '600' },
+  destChipTextActive: { color: COLORS.white },
 
   searchBox: {
     flexDirection: 'row',

@@ -3,7 +3,7 @@ import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, CartItem, Order, Product } from '../types';
 import { MOCK_ORDERS, MOCK_PRODUCTS } from '../constants';
-import { fetchLivePrices, formatLastUpdated, invalidatePriceCache, ProductPrice } from '../services/priceService';
+import { fetchLivePrices, formatLastUpdated, invalidatePriceCache, ProductPrice, Destination } from '../services/priceService';
 import * as authService from '../services/authService';
 
 // CRM customer -> app User. One login per company: `name` is the company
@@ -69,6 +69,9 @@ interface AppContextType {
   priceStatus: string;
   pricesLoading: boolean;
   refreshPrices: () => Promise<void>;
+  destinations: Destination[];
+  destinationId: number | null;
+  selectDestination: (id: number) => void;
   login: (email: string, password: string) => Promise<boolean>;
   createAccount: (email: string, password: string) => Promise<void>;
   logout: () => void;
@@ -90,17 +93,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
   const [priceStatus, setPriceStatus] = useState('');
   const [pricesLoading, setPricesLoading] = useState(false);
+  const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [destinationId, setDestinationId] = useState<number | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const tokenRef = useRef<string | null>(null);
 
-  const refreshPrices = async (authToken?: string, force = false) => {
+  const refreshPrices = async (authToken?: string, force = false, destId?: number | null) => {
     const t = authToken ?? token;
     if (!t) return; // no session yet — nothing to price
     if (force) await invalidatePriceCache(); // bypass the TTL — a foreground open should always show today's prices
     setPricesLoading(true);
     try {
-      const { prices, source, lastUpdated } = await fetchLivePrices(t);
+      const target = destId !== undefined ? destId : destinationId;
+      const { prices, source, lastUpdated, destinations: dests, destinationId: resolvedDestId } =
+        await fetchLivePrices(t, target);
+      setDestinations(dests);
+      setDestinationId(resolvedDestId);
       if (prices.length > 0) {
         setProducts(buildProductsFromPrices(prices));
       }
@@ -114,6 +123,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setPricesLoading(false);
     }
+  };
+
+  // Switching delivery site re-quotes from the CRM: freight and margin are set
+  // per destination, so prices are not interchangeable between a customer's sites.
+  const selectDestination = (id: number) => {
+    setDestinationId(id);
+    refreshPrices(undefined, true, id);
   };
 
   useEffect(() => {
@@ -187,6 +203,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
     setCart([]); // the persist effect writes the emptied cart through to storage
     setProducts(MOCK_PRODUCTS); // clear the previous customer's resolved prices
+    setDestinations([]);
+    setDestinationId(null);
     authService.logout();
     invalidatePriceCache(); // a different company logging in on this device must not see stale prices
   };
@@ -240,6 +258,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider
       value={{
         user, cart, orders, products, priceStatus, pricesLoading, refreshPrices,
+        destinations, destinationId, selectDestination,
         login, createAccount, logout, addToCart, removeFromCart, updateCartQuantity, clearCart,
         placeOrder, cartTotal, cartCount,
       }}

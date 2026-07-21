@@ -12,6 +12,13 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://windecker-crm.u
 const CACHE_KEY = 'fuel_prices_cache';
 const CACHE_TTL_MS = 15 * 60 * 1000; // refresh every 15 min — same-day price changes must reach customers fast
 
+export interface Destination {
+  id: number;
+  name: string;
+  area: string | null;
+  isPrimary: boolean;
+}
+
 export interface ProductPrice {
   id: string;
   name: string;
@@ -22,20 +29,30 @@ export interface ProductPrice {
 
 interface PriceCache {
   prices: ProductPrice[];
+  destinations: Destination[];
+  destinationId: number | null;
   fetchedAt: number;
 }
 
 // ── Fetch from API ───────────────────────────────────────────────────────────
-async function fetchFromAPI(token: string): Promise<ProductPrice[]> {
-  const res = await fetch(`${API_BASE_URL}/api/customer/prices`, {
+async function fetchFromAPI(
+  token: string,
+  destinationId?: number | null
+): Promise<{ prices: ProductPrice[]; destinations: Destination[]; destinationId: number | null }> {
+  const qs = destinationId ? `?destinationId=${destinationId}` : '';
+  const res = await fetch(`${API_BASE_URL}/api/customer/prices${qs}`, {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error(`Price API returned ${res.status}`);
   const data = await res.json();
-  return (data.prices as { id: string; name: string; unit: string; price: number }[]).map((p) => ({
-    ...p,
-    updatedAt: data.updatedAt,
-  }));
+  return {
+    prices: (data.prices as { id: string; name: string; unit: string; price: number }[]).map((p) => ({
+      ...p,
+      updatedAt: data.updatedAt,
+    })),
+    destinations: (data.destinations as Destination[]) ?? [],
+    destinationId: data.destinationId ?? null,
+  };
 }
 
 // ── Cache helpers ────────────────────────────────────────────────────────────
@@ -48,8 +65,12 @@ async function getCached(): Promise<PriceCache | null> {
   }
 }
 
-async function saveCache(prices: ProductPrice[]) {
-  const cache: PriceCache = { prices, fetchedAt: Date.now() };
+async function saveCache(
+  prices: ProductPrice[],
+  destinations: Destination[],
+  destinationId: number | null
+) {
+  const cache: PriceCache = { prices, destinations, destinationId, fetchedAt: Date.now() };
   await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(cache));
 }
 
@@ -58,27 +79,48 @@ async function saveCache(prices: ProductPrice[]) {
  * Returns the logged-in customer's live prices (from API or fresh cache).
  * Falls back to stale cache or empty if completely offline.
  */
-export async function fetchLivePrices(token: string): Promise<{
+export async function fetchLivePrices(
+  token: string,
+  destinationId?: number | null
+): Promise<{
   prices: ProductPrice[];
+  destinations: Destination[];
+  destinationId: number | null;
   source: 'live' | 'cache' | 'offline';
   lastUpdated: Date | null;
 }> {
   const cached = await getCached();
   const cacheAge = cached ? Date.now() - cached.fetchedAt : Infinity;
+  // A different site has different freight and margin, so a cache entry is only
+  // usable for the destination it was fetched for.
+  const cacheUsable =
+    cached && (!destinationId || cached.destinationId === destinationId);
 
-  if (cached && cacheAge < CACHE_TTL_MS) {
-    return { prices: cached.prices, source: 'cache', lastUpdated: new Date(cached.fetchedAt) };
+  if (cached && cacheUsable && cacheAge < CACHE_TTL_MS) {
+    return {
+      prices: cached.prices,
+      destinations: cached.destinations ?? [],
+      destinationId: cached.destinationId ?? null,
+      source: 'cache',
+      lastUpdated: new Date(cached.fetchedAt),
+    };
   }
 
   try {
-    const prices = await fetchFromAPI(token);
-    await saveCache(prices);
-    return { prices, source: 'live', lastUpdated: new Date() };
+    const res = await fetchFromAPI(token, destinationId);
+    await saveCache(res.prices, res.destinations, res.destinationId);
+    return { ...res, source: 'live', lastUpdated: new Date() };
   } catch {
-    if (cached) {
-      return { prices: cached.prices, source: 'cache', lastUpdated: new Date(cached.fetchedAt) };
+    if (cached && cacheUsable) {
+      return {
+        prices: cached.prices,
+        destinations: cached.destinations ?? [],
+        destinationId: cached.destinationId ?? null,
+        source: 'cache',
+        lastUpdated: new Date(cached.fetchedAt),
+      };
     }
-    return { prices: [], source: 'offline', lastUpdated: null };
+    return { prices: [], destinations: [], destinationId: null, source: 'offline', lastUpdated: null };
   }
 }
 
