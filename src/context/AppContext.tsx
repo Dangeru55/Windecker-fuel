@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, CartItem, Order, Product } from '../types';
 import { MOCK_ORDERS, MOCK_PRODUCTS } from '../constants';
@@ -91,10 +92,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [pricesLoading, setPricesLoading] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [token, setToken] = useState<string | null>(null);
+  const tokenRef = useRef<string | null>(null);
 
-  const refreshPrices = async (authToken?: string) => {
+  const refreshPrices = async (authToken?: string, force = false) => {
     const t = authToken ?? token;
     if (!t) return; // no session yet — nothing to price
+    if (force) await invalidatePriceCache(); // bypass the TTL — a foreground open should always show today's prices
     setPricesLoading(true);
     try {
       const { prices, source, lastUpdated } = await fetchLivePrices(t);
@@ -112,6 +115,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setPricesLoading(false);
     }
   };
+
+  useEffect(() => {
+    tokenRef.current = token;
+  }, [token]);
+
+  useEffect(() => {
+    // A customer who left the app open overnight, or backgrounded it, should
+    // see today's prices the moment they come back — not whatever was cached
+    // when they last opened it. Re-fetching on every foreground (in addition
+    // to the 15-min TTL and pull-to-refresh) is what makes "upload at 7am"
+    // actually reach the customer instead of silently waiting on a timer.
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && tokenRef.current) refreshPrices(tokenRef.current, true);
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     // Restore session: a stored token means we're logged in as a customer —

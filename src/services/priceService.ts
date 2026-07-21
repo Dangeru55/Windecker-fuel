@@ -10,7 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://windecker-crm.up.railway.app';
 const CACHE_KEY = 'fuel_prices_cache';
-const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // refresh every 6 hours
+const CACHE_TTL_MS = 15 * 60 * 1000; // refresh every 15 min — same-day price changes must reach customers fast
 
 export interface ProductPrice {
   id: string;
