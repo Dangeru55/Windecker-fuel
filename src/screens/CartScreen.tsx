@@ -20,7 +20,7 @@ function CartRow({ item, onRemove, onUpdate }: {
         <View style={styles.rowInfo}>
           <Text style={styles.rowName}>{item.product.name}</Text>
           <Text style={styles.rowPrice}>
-            ${item.product.price.toFixed(2)} per {item.product.unit}
+            ${item.product.price.toFixed(4)} per {item.product.unit}
           </Text>
         </View>
         <TouchableOpacity

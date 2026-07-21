@@ -19,7 +19,7 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: (p: Product)
           <Text style={styles.description}>{product.description}</Text>
         </View>
         <View style={styles.priceBox}>
-          <Text style={styles.price}>${product.price.toFixed(2)}</Text>
+          <Text style={styles.price}>${product.price.toFixed(4)}</Text>
           <Text style={styles.unit}>per {product.unit}</Text>
         </View>
       </View>
@@ -91,6 +91,11 @@ export default function HomeScreen() {
           <View style={styles.destRow}>
             {destinations.map((d) => {
               const active = d.id === destinationId;
+              // Several sites can share a name and differ only by the rack they
+              // pull from (#1 Gas has two "Berkeley" sites, Richmond and East
+              // Bay, at different freight) — show the rack to tell them apart.
+              const ambiguous =
+                destinations.filter((o) => o.name === d.name).length > 1 && !!d.area;
               return (
                 <TouchableOpacity
                   key={d.id}
@@ -99,7 +104,7 @@ export default function HomeScreen() {
                   activeOpacity={0.8}
                 >
                   <Text style={[styles.destChipText, active && styles.destChipTextActive]}>
-                    {d.name}
+                    {ambiguous ? `${d.name} · ${d.area}` : d.name}
                   </Text>
                 </TouchableOpacity>
               );
@@ -152,7 +157,7 @@ export default function HomeScreen() {
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>{selectedProduct?.name}</Text>
             <Text style={styles.modalPrice}>
-              ${selectedProduct?.price.toFixed(2)} per {selectedProduct?.unit}
+              ${selectedProduct?.price.toFixed(4)} per {selectedProduct?.unit}
             </Text>
             <Text style={styles.modalLabel}>Quantity ({selectedProduct?.unit}s)</Text>
             <TextInput
