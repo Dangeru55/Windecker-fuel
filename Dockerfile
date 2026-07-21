@@ -11,6 +11,9 @@ COPY . .
 ENV EXPO_PUBLIC_API_URL=https://windecker-crm.up.railway.app
 RUN npx expo export --platform web
 
+# Add PWA/Apple home-screen icons + manifest (Expo export only emits a favicon)
+RUN node scripts/inject-pwa.mjs
+
 # Serve the static bundle
 RUN npm install -g serve
 EXPOSE 3000
