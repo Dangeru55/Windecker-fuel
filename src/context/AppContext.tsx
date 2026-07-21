@@ -106,17 +106,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setPricesLoading(true);
     try {
       const target = destId !== undefined ? destId : destinationId;
-      const { prices, source, lastUpdated, destinations: dests, destinationId: resolvedDestId } =
+      const { prices, source, lastUpdated, destinations: dests, destinationId: resolvedDestId, stale } =
         await fetchLivePrices(t, target);
       setDestinations(dests);
       setDestinationId(resolvedDestId);
       if (prices.length > 0) {
         setProducts(buildProductsFromPrices(prices));
       }
+      // `stale` means the CRM's own rack feed missed a day — the prices are
+      // genuinely old, not just our cache. Say so rather than presenting them
+      // as today's, since the customer would be quoted a number we can't honour.
       setPriceStatus(
         source === 'offline'
           ? '⚠️ Showing cached prices — check connection'
-          : formatLastUpdated(lastUpdated)
+          : stale
+            ? '⚠️ Prices may be out of date — confirm before ordering'
+            : formatLastUpdated(lastUpdated)
       );
     } catch {
       setPriceStatus('⚠️ Could not load prices');

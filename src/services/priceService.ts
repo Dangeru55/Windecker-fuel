@@ -38,7 +38,7 @@ interface PriceCache {
 async function fetchFromAPI(
   token: string,
   destinationId?: number | null
-): Promise<{ prices: ProductPrice[]; destinations: Destination[]; destinationId: number | null }> {
+): Promise<{ prices: ProductPrice[]; destinations: Destination[]; destinationId: number | null; stale: boolean }> {
   const qs = destinationId ? `?destinationId=${destinationId}` : '';
   const res = await fetch(`${API_BASE_URL}/api/customer/prices${qs}`, {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -52,6 +52,7 @@ async function fetchFromAPI(
     })),
     destinations: (data.destinations as Destination[]) ?? [],
     destinationId: data.destinationId ?? null,
+    stale: !!data.stale,
   };
 }
 
@@ -86,6 +87,7 @@ export async function fetchLivePrices(
   prices: ProductPrice[];
   destinations: Destination[];
   destinationId: number | null;
+  stale: boolean;
   source: 'live' | 'cache' | 'offline';
   lastUpdated: Date | null;
 }> {
@@ -101,6 +103,7 @@ export async function fetchLivePrices(
       prices: cached.prices,
       destinations: cached.destinations ?? [],
       destinationId: cached.destinationId ?? null,
+      stale: false,
       source: 'cache',
       lastUpdated: new Date(cached.fetchedAt),
     };
@@ -116,11 +119,12 @@ export async function fetchLivePrices(
         prices: cached.prices,
         destinations: cached.destinations ?? [],
         destinationId: cached.destinationId ?? null,
+        stale: false,
         source: 'cache',
         lastUpdated: new Date(cached.fetchedAt),
       };
     }
-    return { prices: [], destinations: [], destinationId: null, source: 'offline', lastUpdated: null };
+    return { prices: [], destinations: [], destinationId: null, stale: false, source: 'offline', lastUpdated: null };
   }
 }
 
