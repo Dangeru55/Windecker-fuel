@@ -19,6 +19,14 @@ const assets = [
   'pwa-512.png',
   'pwa-maskable-512.png',
   'manifest.webmanifest',
+  // `serve` (the Dockerfile's static server) reads this from the served
+  // directory to set Cache-Control per file. Without it, index.html has no
+  // caching directive at all, and iOS caches a standalone (home-screen) app's
+  // shell aggressively -- a redeploy can go unseen for a long time because
+  // there's no browser reload affordance to force a refetch. The hashed JS/CSS
+  // bundles are safe to cache forever; only the un-hashed index.html that
+  // references them needs to always be fetched fresh.
+  'serve.json',
 ];
 
 for (const f of assets) copyFileSync(join(pwa, f), join(dist, f));
@@ -35,6 +43,9 @@ if (!html.includes('apple-touch-icon')) {
     '<meta name="apple-mobile-web-app-status-bar-style" content="default" />',
     '<meta name="apple-mobile-web-app-title" content="Windecker Fuel" />',
     '<meta name="theme-color" content="#0C8686" />',
+    // Belt-and-suspenders alongside serve.json's Cache-Control header — some
+    // caching layers key off this meta tag independently of HTTP headers.
+    '<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />',
   ].join('');
   html = html.replace('</head>', tags + '</head>');
   writeFileSync(indexPath, html);
