@@ -46,6 +46,16 @@ export default function HomeScreen() {
       p.category.toLowerCase().includes(search.toLowerCase())
   );
 
+  // The catalogue is already scoped to the customer's type by the server; the
+  // screen just frames it so a gas station and a commercial account each read as
+  // their own experience.
+  const isGasStation = user?.entityType === 'gas_station';
+  const searchPlaceholder = isGasStation ? 'Search fuel products' : 'Search products';
+  const sectionTitle = isGasStation ? 'Fuel Products' : 'Products';
+  const emptyText = isGasStation
+    ? 'No fuel products are priced for your account yet.'
+    : 'No products are set up for your account yet. Contact your Windecker rep to get started.';
+
   const handleAdd = (product: Product) => {
     setSelectedProduct(product);
     setQuantity('100');
@@ -117,7 +127,7 @@ export default function HomeScreen() {
         <Ionicons name="search" size={18} color={COLORS.textSecondary} style={{ marginRight: 8 }} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search fuel products"
+          placeholder={searchPlaceholder}
           placeholderTextColor={COLORS.textSecondary}
           value={search}
           onChangeText={setSearch}
@@ -129,9 +139,15 @@ export default function HomeScreen() {
         )}
       </View>
 
-      <Text style={styles.sectionTitle}>Products</Text>
+      <Text style={styles.sectionTitle}>{sectionTitle}</Text>
     </View>
   );
+
+  const EmptyProducts = !pricesLoading && products.length === 0 ? (
+    <View style={styles.emptyBox}>
+      <Text style={styles.emptyText}>{emptyText}</Text>
+    </View>
+  ) : null;
 
   return (
     <View style={styles.container}>
@@ -140,6 +156,7 @@ export default function HomeScreen() {
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => <ProductCard product={item} onAdd={handleAdd} />}
         ListHeaderComponent={ListHeader}
+        ListEmptyComponent={EmptyProducts}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -236,6 +253,9 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 15, color: COLORS.text },
 
   sectionTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text, letterSpacing: -0.4, marginTop: 24, marginBottom: 12 },
+
+  emptyBox: { paddingVertical: 32, paddingHorizontal: 8 },
+  emptyText: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 21 },
 
   card: {
     backgroundColor: COLORS.white,

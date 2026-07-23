@@ -1,9 +1,14 @@
+export type EntityType = 'gas_station' | 'commercial' | 'ag';
+
 export interface User {
   id: string;
   name: string;
   email: string;
   company: string;
   phone: string;
+  // Determines which order screen the customer gets — a gas station and a
+  // commercial/ag account see different catalogues, never each other's.
+  entityType: EntityType;
 }
 
 export interface Product {

@@ -14,6 +14,7 @@ export interface PortalCustomer {
   email: string;
   phone: string | null;
   address: string | null;
+  entityType?: 'gas_station' | 'commercial' | 'ag';
 }
 
 interface LoginResponse {

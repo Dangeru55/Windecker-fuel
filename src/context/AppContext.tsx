@@ -15,6 +15,10 @@ function toAppUser(customer: authService.PortalCustomer): User {
     email: customer.email,
     company: customer.name,
     phone: customer.phone ?? '',
+    // Default to commercial if the CRM didn't say — the safer bias, since a
+    // miscategorised gas station missing a product is better than a commercial
+    // account being shown fuel-only.
+    entityType: customer.entityType ?? 'commercial',
   };
 }
 

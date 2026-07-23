@@ -24,12 +24,14 @@ export const MOCK_USERS: User[] = [
     email: 'john@example.com',
     company: 'Smith Farms LLC',
     phone: '(555) 123-4567',
+    entityType: 'ag',
   },
   {
     id: '2',
     name: 'Sarah Johnson',
     email: 'sarah@example.com',
     company: 'Johnson Transport',
+    entityType: 'commercial',
     phone: '(555) 987-6543',
   },
 ];
