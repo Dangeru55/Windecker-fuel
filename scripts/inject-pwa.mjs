@@ -46,6 +46,16 @@ if (!html.includes('apple-touch-icon')) {
     // Belt-and-suspenders alongside serve.json's Cache-Control header — some
     // caching layers key off this meta tag independently of HTTP headers.
     '<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />',
+    // Reserve the iOS home-indicator strip at the CSS layer rather than in
+    // React state. react-native-safe-area-context's web implementation reads
+    // env() into a JS value via a hidden element + transitionend listener,
+    // which is one more thing that can be zero/stale/late; a plain CSS rule
+    // resolved by WebKit itself at layout time can't be. box-sizing: border-box
+    // is what makes this a *reservation* rather than an overflow: with it,
+    // body's height: 100% (set by Expo's own reset, above) already includes
+    // the padding, so the safe area is carved out of the existing 100% instead
+    // of being added on top of it and pushing content past the fold.
+    '<style>body { box-sizing: border-box; padding-bottom: env(safe-area-inset-bottom, 0px); }</style>',
   ].join('');
   html = html.replace('</head>', tags + '</head>');
   writeFileSync(indexPath, html);

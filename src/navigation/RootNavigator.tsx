@@ -3,7 +3,6 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Image } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { COLORS } from '../constants';
@@ -49,12 +48,14 @@ function TabIcon({ name, focused, color }: { name: string; focused: boolean; col
 function MainTabs() {
   const { cartCount } = useApp();
   // Saved-to-home-screen (standalone) mode has no browser chrome, so the tab
-  // bar sits flush against the bottom of the physical screen -- under the iOS
-  // home-indicator area. A fixed paddingBottom looked fine in a normal browser
-  // tab (which reserves that space itself) but got clipped once standalone.
-  // insets.bottom is 0 on a regular web page, so this only changes anything in
-  // standalone.
-  const insets = useSafeAreaInsets();
+  // bar would otherwise sit flush against the bottom of the physical screen --
+  // under the iOS home-indicator area. That space is reserved at the CSS level
+  // (index.html: body { padding-bottom: env(safe-area-inset-bottom) }) rather
+  // than here: react-native-safe-area-context's web implementation computes
+  // insets via a hidden element + JS callback, which proved unreliable in
+  // standalone mode, whereas a plain CSS env() rule is resolved by WebKit
+  // itself and can't be zero/stale/late. Doing it in both places would double
+  // the reserved space, so the tab bar itself stays at fixed sizing.
   return (
     <Tab.Navigator
       screenOptions={{
@@ -68,13 +69,9 @@ function MainTabs() {
           shadowOffset: { width: 0, height: -4 },
           shadowOpacity: 0.06,
           shadowRadius: 12,
-          // The safe-area inset must be pure addition on top of the original
-          // content height, not taken out of it -- shrinking the base height to
-          // make room left too little space for icon + label together, and the
-          // labels got clipped invisibly instead of the bar getting taller.
-          height: 64 + insets.bottom,
+          height: 64,
           paddingTop: 8,
-          paddingBottom: 10 + insets.bottom,
+          paddingBottom: 10,
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600', letterSpacing: 0.2 },
         headerStyle: {
