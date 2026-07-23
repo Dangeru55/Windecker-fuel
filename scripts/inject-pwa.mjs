@@ -42,3 +42,16 @@ if (!html.includes('apple-touch-icon')) {
 } else {
   console.log('inject-pwa: tags already present, skipped');
 }
+
+// Expo's viewport tag has no viewport-fit=cover, so `env(safe-area-inset-*)`
+// resolves to 0 everywhere -- including in standalone (home-screen) mode on
+// iOS, where the bottom tab bar sits under the home-indicator area and the app
+// can't tell. Without this, the safe-area padding in RootNavigator does nothing.
+const oldViewport = /<meta name="viewport"[^>]*>/;
+const newViewport =
+  '<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />';
+if (oldViewport.test(html) && !html.includes('viewport-fit=cover')) {
+  html = html.replace(oldViewport, newViewport);
+  writeFileSync(indexPath, html);
+  console.log('inject-pwa: added viewport-fit=cover');
+}

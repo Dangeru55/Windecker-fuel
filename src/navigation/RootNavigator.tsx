@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Image } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { COLORS } from '../constants';
@@ -39,6 +40,13 @@ function TabIcon({ name, focused, color }: { name: string; focused: boolean; col
 
 function MainTabs() {
   const { cartCount } = useApp();
+  // Saved-to-home-screen (standalone) mode has no browser chrome, so the tab
+  // bar sits flush against the bottom of the physical screen -- under the iOS
+  // home-indicator area. A fixed paddingBottom looked fine in a normal browser
+  // tab (which reserves that space itself) but got clipped once standalone.
+  // insets.bottom is 0 on a regular web page, so this only changes anything in
+  // standalone.
+  const insets = useSafeAreaInsets();
   return (
     <Tab.Navigator
       screenOptions={{
@@ -52,9 +60,9 @@ function MainTabs() {
           shadowOffset: { width: 0, height: -4 },
           shadowOpacity: 0.06,
           shadowRadius: 12,
-          height: 64,
+          height: 54 + insets.bottom,
           paddingTop: 8,
-          paddingBottom: 10,
+          paddingBottom: 10 + insets.bottom,
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600', letterSpacing: 0.2 },
         headerStyle: {
