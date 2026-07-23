@@ -1,11 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ActivityIndicator, Image, ScrollView,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../context/AppContext';
 import { COLORS } from '../constants';
 import { showAlert } from '../utils/alert';
+
+const REMEMBERED_EMAIL_KEY = 'remembered_email';
 
 export default function LoginScreen() {
   const { login, createAccount } = useApp();
@@ -14,6 +18,16 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  // Defaults on (most people signing in on their own device want this); a
+  // stored email with the box unchecked would be confusing, so unchecking
+  // clears it immediately rather than waiting for the next login.
+  const [rememberEmail, setRememberEmail] = useState(true);
+
+  useEffect(() => {
+    AsyncStorage.getItem(REMEMBERED_EMAIL_KEY).then((saved) => {
+      if (saved) setEmail(saved);
+    });
+  }, []);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -21,9 +35,18 @@ export default function LoginScreen() {
       return;
     }
     setLoading(true);
-    const success = await login(email.trim(), password);
+    const trimmedEmail = email.trim();
+    const success = await login(trimmedEmail, password);
     setLoading(false);
-    if (!success) showAlert('Login Failed', 'Invalid email or password');
+    if (!success) {
+      showAlert('Login Failed', 'Invalid email or password');
+      return;
+    }
+    if (rememberEmail) {
+      await AsyncStorage.setItem(REMEMBERED_EMAIL_KEY, trimmedEmail);
+    } else {
+      await AsyncStorage.removeItem(REMEMBERED_EMAIL_KEY);
+    }
   };
 
   const handleCreateAccount = async () => {
@@ -89,6 +112,17 @@ export default function LoginScreen() {
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
+
+                <TouchableOpacity
+                  style={styles.rememberRow}
+                  onPress={() => setRememberEmail((v) => !v)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.checkbox, rememberEmail && styles.checkboxChecked]}>
+                    {rememberEmail && <Ionicons name="checkmark" size={14} color={COLORS.white} />}
+                  </View>
+                  <Text style={styles.rememberText}>Remember email address</Text>
+                </TouchableOpacity>
 
                 <Text style={styles.label}>Password</Text>
                 <TextInput
@@ -213,6 +247,19 @@ const styles = StyleSheet.create({
   heading: { fontSize: 20, fontWeight: 'bold', color: COLORS.text, marginBottom: 4 },
   subtitle: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 24 },
   label: { fontSize: 13, fontWeight: '600', color: COLORS.text, marginBottom: 6 },
+  rememberRow: { flexDirection: 'row', alignItems: 'center', marginTop: -8, marginBottom: 16 },
+  checkbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  checkboxChecked: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  rememberText: { fontSize: 13, color: COLORS.textSecondary },
   input: {
     borderWidth: 1,
     borderColor: COLORS.border,
