@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, CartItem, Order, Product } from '../types';
 import { MOCK_ORDERS, MOCK_PRODUCTS } from '../constants';
@@ -76,6 +76,7 @@ interface AppContextType {
   destinations: Destination[];
   destinationId: number | null;
   selectDestination: (id: number) => void;
+  isPreview: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   createAccount: (email: string, password: string) => Promise<void>;
   logout: () => void;
@@ -99,6 +100,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [pricesLoading, setPricesLoading] = useState(false);
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [destinationId, setDestinationId] = useState<number | null>(null);
+  const [isPreview, setIsPreview] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const tokenRef = useRef<string | null>(null);
@@ -158,6 +160,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // A manager opening "view as customer" from the CRM arrives with a
+    // short-lived preview token in the URL. Use it for this tab only — never
+    // persisted, so it can't outlive the visit or displace a real customer's
+    // session on a shared device.
+    const previewToken =
+      Platform.OS === 'web' && typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('preview')
+        : null;
+
+    if (previewToken) {
+      authService.fetchMe(previewToken).then((customer) => {
+        if (!customer) return;
+        setToken(previewToken);
+        setUser(toAppUser(customer));
+        setIsPreview(true);
+        refreshPrices(previewToken);
+        // Drop the token from the address bar so it isn't shared by copy-paste.
+        window.history.replaceState({}, '', window.location.pathname);
+      });
+      return;
+    }
+
     // Restore session: a stored token means we're logged in as a customer —
     // re-validate it against the CRM rather than trusting a cached user object.
     authService.getToken().then(async (t) => {
@@ -248,6 +272,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const clearCart = () => setCart([]);
 
   const placeOrder = (address: string) => {
+    // Read-only: a manager looking at a customer's account must not be able to
+    // place an order in that customer's name.
+    if (isPreview) return;
     const order: Order = {
       id: `ORD-${Date.now()}`,
       date: new Date().toISOString().split('T')[0],
@@ -267,7 +294,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider
       value={{
         user, cart, orders, products, priceStatus, pricesLoading, refreshPrices,
-        destinations, destinationId, selectDestination,
+        destinations, destinationId, selectDestination, isPreview,
         login, createAccount, logout, addToCart, removeFromCart, updateCartQuantity, clearCart,
         placeOrder, cartTotal, cartCount,
       }}

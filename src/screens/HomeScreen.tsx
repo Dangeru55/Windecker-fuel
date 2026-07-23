@@ -34,7 +34,7 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: (p: Product)
 export default function HomeScreen() {
   const {
     user, addToCart, products, priceStatus, pricesLoading, refreshPrices,
-    destinations, destinationId, selectDestination,
+    destinations, destinationId, selectDestination, isPreview,
   } = useApp();
   const [search, setSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -74,6 +74,15 @@ export default function HomeScreen() {
 
   const ListHeader = (
     <View>
+      {isPreview && (
+        <View style={styles.previewBanner}>
+          <Ionicons name="eye-outline" size={16} color={COLORS.white} />
+          <Text style={styles.previewBannerText}>
+            Staff preview of {user?.company} ({user?.entityType === 'gas_station' ? 'gas station' : 'commercial'})
+            {' '}— ordering is disabled
+          </Text>
+        </View>
+      )}
       <Text style={styles.greeting}>Hi, {user?.name?.split(' ')[0]}</Text>
       <Text style={styles.company}>{user?.company}</Text>
 
@@ -253,6 +262,18 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 15, color: COLORS.text },
 
   sectionTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text, letterSpacing: -0.4, marginTop: 24, marginBottom: 12 },
+
+  previewBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: '#B45309',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginTop: 10,
+  },
+  previewBannerText: { flex: 1, color: COLORS.white, fontSize: 12, fontWeight: '600' },
 
   emptyBox: { paddingVertical: 32, paddingHorizontal: 8 },
   emptyText: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 21 },

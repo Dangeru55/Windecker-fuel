@@ -15,6 +15,9 @@ export interface PortalCustomer {
   phone: string | null;
   address: string | null;
   entityType?: 'gas_station' | 'commercial' | 'ag';
+  // True when a Windecker manager is viewing this account rather than the
+  // customer being signed in. Read-only.
+  preview?: boolean;
 }
 
 interface LoginResponse {
