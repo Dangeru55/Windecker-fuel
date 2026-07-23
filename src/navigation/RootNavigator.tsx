@@ -26,10 +26,18 @@ const TAB_ICONS: Record<string, { active: keyof typeof Ionicons.glyphMap; inacti
 
 function TabIcon({ name, focused, color }: { name: string; focused: boolean; color: string }) {
   if (name === 'Home') {
+    // logo.png is a huge canvas (1545x2000) with the actual mark occupying a
+    // small fraction of it, so scaling the raw file into a 30x30 box shrank the
+    // visible logo to a few pixels -- far smaller than the solid Ionicons glyphs
+    // beside it. nav-icon.png is the speedometer mark only (the wordmark below
+    // it is illegible at this size anyway), pre-trimmed to its own bounding box
+    // so no space is wasted, and sized wider than it is tall since the mark
+    // itself is a wide, flat shape -- forcing it into a square would shrink it
+    // right back down to a sliver.
     return (
       <Image
-        source={require('../../assets/logo.png')}
-        style={{ width: 30, height: 30, opacity: focused ? 1 : 0.45 }}
+        source={require('../../assets/nav-icon.png')}
+        style={{ width: 40, height: 40 * (269 / 940), opacity: focused ? 1 : 0.45 }}
         resizeMode="contain"
       />
     );
@@ -60,7 +68,11 @@ function MainTabs() {
           shadowOffset: { width: 0, height: -4 },
           shadowOpacity: 0.06,
           shadowRadius: 12,
-          height: 54 + insets.bottom,
+          // The safe-area inset must be pure addition on top of the original
+          // content height, not taken out of it -- shrinking the base height to
+          // make room left too little space for icon + label together, and the
+          // labels got clipped invisibly instead of the bar getting taller.
+          height: 64 + insets.bottom,
           paddingTop: 8,
           paddingBottom: 10 + insets.bottom,
         },
