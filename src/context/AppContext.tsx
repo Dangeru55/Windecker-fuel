@@ -29,6 +29,12 @@ function toAppUser(customer: authService.PortalCustomer): User {
 // until someone writes something nicer.
 function deriveCopy(name: string): { category: string; description: string } {
   const n = name.toLowerCase();
+  // Packaged commercial goods first — "AGL Lube Oil FG 32" and friends contain
+  // no fuel keywords and would otherwise fall through to the generic bucket.
+  if (n.includes('grease')) return { category: 'Grease', description: 'Multi-purpose grease' };
+  if (n.includes('hose')) return { category: 'Parts & Supplies', description: 'Farm and equipment supplies' };
+  if (n.includes('oil') || n.includes('lube') || n.includes('tractor fluid') || /\d+w-?\d+/.test(n))
+    return { category: 'Lubricants', description: 'Engine and equipment lubricant' };
   // Check renewable/bio before the generic "dyed" match — "R99 Dyed" is a
   // renewable diesel variant, not off-road diesel, even though it contains "dyed".
   if (n.includes('r99') || n.includes('r95') || n.includes('renew'))
