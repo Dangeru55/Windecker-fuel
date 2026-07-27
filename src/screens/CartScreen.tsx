@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  TextInput, Modal,
+  TextInput, Modal, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
@@ -57,19 +57,35 @@ function CartRow({ item, onRemove, onUpdate }: {
 }
 
 export default function CartScreen() {
-  const { cart, removeFromCart, updateCartQuantity, cartTotal, placeOrder } = useApp();
+  const { cart, removeFromCart, updateCartQuantity, cartTotal, placeOrder, isPreview } = useApp();
   const [address, setAddress] = useState('');
+  const [notes, setNotes] = useState('');
   const [showCheckout, setShowCheckout] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleOrder = () => {
+  // The order is only confirmed to the customer once the CRM has actually
+  // recorded it — a failure has to surface, not be swallowed behind a
+  // success message.
+  const handleOrder = async () => {
     if (!address.trim()) {
       showAlert('Address Required', 'Please enter a delivery address');
       return;
     }
-    placeOrder(address);
-    setShowCheckout(false);
-    setAddress('');
-    showAlert('Order Placed!', 'Your fuel order has been submitted. We will contact you to confirm delivery.');
+    setSubmitting(true);
+    try {
+      await placeOrder(address.trim(), notes.trim() || undefined);
+      setShowCheckout(false);
+      setAddress('');
+      setNotes('');
+      showAlert(
+        'Order sent',
+        'Windecker has your order. You can follow its status on the Orders tab — we\'ll confirm shortly.'
+      );
+    } catch (err) {
+      showAlert('Could not send order', err instanceof Error ? err.message : 'Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (cart.length === 0) {
@@ -109,9 +125,16 @@ export default function CartScreen() {
             </View>
             <Text style={styles.totalAmount}>${cartTotal.toFixed(2)}</Text>
           </View>
-          <TouchableOpacity style={styles.checkoutBtn} onPress={() => setShowCheckout(true)} activeOpacity={0.85}>
-            <Text style={styles.checkoutBtnText}>Place Order</Text>
-            <Ionicons name="arrow-forward" size={18} color={COLORS.white} />
+          <TouchableOpacity
+            style={[styles.checkoutBtn, isPreview && styles.checkoutBtnDisabled]}
+            onPress={() => setShowCheckout(true)}
+            disabled={isPreview}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.checkoutBtnText}>
+              {isPreview ? 'Ordering disabled in preview' : 'Place Order'}
+            </Text>
+            {!isPreview && <Ionicons name="arrow-forward" size={18} color={COLORS.white} />}
           </TouchableOpacity>
         </View>
       </View>
@@ -131,6 +154,16 @@ export default function CartScreen() {
               multiline
               numberOfLines={3}
             />
+            <Text style={styles.modalLabel}>Notes for Windecker (optional)</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Gate code, tank location, best delivery window…"
+              placeholderTextColor={COLORS.textSecondary}
+              value={notes}
+              onChangeText={setNotes}
+              multiline
+              numberOfLines={2}
+            />
             <View style={styles.orderSummary}>
               <Text style={styles.summaryItem}>{cart.length} product type(s)</Text>
               <Text style={styles.summaryTotal}>${cartTotal.toFixed(2)}</Text>
@@ -143,8 +176,17 @@ export default function CartScreen() {
               >
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalBtn, styles.confirmBtn]} onPress={handleOrder} activeOpacity={0.8}>
-                <Text style={styles.confirmBtnText}>Confirm Order</Text>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.confirmBtn, submitting && styles.confirmBtnDisabled]}
+                onPress={handleOrder}
+                disabled={submitting}
+                activeOpacity={0.8}
+              >
+                {submitting ? (
+                  <ActivityIndicator color={COLORS.white} />
+                ) : (
+                  <Text style={styles.confirmBtnText}>Send Order</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -156,6 +198,8 @@ export default function CartScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  checkoutBtnDisabled: { opacity: 0.5 },
+  confirmBtnDisabled: { opacity: 0.7 },
   list: { padding: 20, maxWidth: 640, width: '100%', alignSelf: 'center' },
 
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },

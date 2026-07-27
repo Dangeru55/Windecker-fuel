@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, CartItem, Order, Product } from '../types';
 import { MOCK_ORDERS, MOCK_PRODUCTS } from '../constants';
 import { fetchLivePrices, formatLastUpdated, invalidatePriceCache, ProductPrice, Destination } from '../services/priceService';
+import { submitOrder, fetchOrders, CustomerOrder } from '../services/orderService';
 import * as authService from '../services/authService';
 
 // CRM customer -> app User. One login per company: `name` is the company
@@ -74,7 +75,7 @@ function buildProductsFromPrices(prices: ProductPrice[]): Product[] {
 interface AppContextType {
   user: User | null;
   cart: CartItem[];
-  orders: Order[];
+  orders: CustomerOrder[];
   products: Product[];
   priceStatus: string;
   pricesLoading: boolean;
@@ -90,7 +91,9 @@ interface AppContextType {
   removeFromCart: (productId: string) => void;
   updateCartQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
-  placeOrder: (address: string) => void;
+  placeOrder: (address: string, notes?: string) => Promise<void>;
+  refreshOrders: () => Promise<void>;
+  ordersLoading: boolean;
   cartTotal: number;
   cartCount: number;
 }
@@ -100,7 +103,8 @@ const AppContext = createContext<AppContextType | null>(null);
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [orders, setOrders] = useState<Order[]>(MOCK_ORDERS);
+  const [orders, setOrders] = useState<CustomerOrder[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
   const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
   const [priceStatus, setPriceStatus] = useState('');
   const [pricesLoading, setPricesLoading] = useState(false);
@@ -160,7 +164,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // to the 15-min TTL and pull-to-refresh) is what makes "upload at 7am"
     // actually reach the customer instead of silently waiting on a timer.
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active' && tokenRef.current) refreshPrices(tokenRef.current, true);
+      if (state === 'active' && tokenRef.current) {
+        refreshPrices(tokenRef.current, true);
+        refreshOrders(tokenRef.current);
+      }
     });
     return () => sub.remove();
   }, []);
@@ -182,6 +189,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setUser(toAppUser(customer));
         setIsPreview(true);
         refreshPrices(previewToken);
+        refreshOrders(previewToken);
         // Drop the token from the address bar so it isn't shared by copy-paste.
         window.history.replaceState({}, '', window.location.pathname);
       });
@@ -197,6 +205,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setToken(t);
         setUser(toAppUser(customer));
         refreshPrices(t);
+        refreshOrders(t);
       } else {
         await authService.logout(); // token expired/revoked
       }
@@ -220,7 +229,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const t = await authService.getToken();
       setToken(t);
       setUser(toAppUser(customer));
-      if (t) refreshPrices(t);
+      if (t) { refreshPrices(t); refreshOrders(t); }
       return true;
     } catch {
       return false;
@@ -234,13 +243,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const t = await authService.getToken();
     setToken(t);
     setUser(toAppUser(customer));
-    if (t) refreshPrices(t);
+    if (t) { refreshPrices(t); refreshOrders(t); }
   };
 
   const logout = () => {
     setUser(null);
     setToken(null);
     setCart([]); // the persist effect writes the emptied cart through to storage
+    setOrders([]);
     setProducts(MOCK_PRODUCTS); // clear the previous customer's resolved prices
     setDestinations([]);
     setDestinationId(null);
@@ -277,21 +287,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const clearCart = () => setCart([]);
 
-  const placeOrder = (address: string) => {
+  const refreshOrders = async (authToken?: string) => {
+    const t = authToken ?? token;
+    if (!t) return;
+    setOrdersLoading(true);
+    try {
+      setOrders(await fetchOrders(t));
+    } catch {
+      // Leave whatever's on screen rather than blanking the list on a blip.
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  // Submits to the CRM and throws on failure, so the cart is only cleared once
+  // the order is genuinely recorded — the previous local-only version told the
+  // customer "we'll contact you" when nothing had actually been sent.
+  const placeOrder = async (address: string, notes?: string) => {
     // Read-only: a manager looking at a customer's account must not be able to
     // place an order in that customer's name.
-    if (isPreview) return;
-    const order: Order = {
-      id: `ORD-${Date.now()}`,
-      date: new Date().toISOString().split('T')[0],
-      items: [...cart],
-      total: cartTotal,
-      status: 'pending',
+    if (isPreview) throw new Error('Ordering is disabled in staff preview.');
+    if (!token) throw new Error('Please sign in again.');
+    if (cart.length === 0) throw new Error('Your cart is empty.');
+
+    await submitOrder(token, {
+      items: cart.map((i) => ({ productId: i.product.id, quantity: i.quantity, name: i.product.name })),
+      destinationId,
       deliveryAddress: address,
-    };
-    setOrders([order, ...orders]);
+      notes,
+    });
     clearCart();
+    await refreshOrders(token);
   };
+
 
   const cartTotal = cart.reduce((sum, i) => sum + i.product.price * i.quantity, 0);
   const cartCount = cart.reduce((sum, i) => sum + i.quantity, 0);
@@ -302,7 +330,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         user, cart, orders, products, priceStatus, pricesLoading, refreshPrices,
         destinations, destinationId, selectDestination, isPreview,
         login, createAccount, logout, addToCart, removeFromCart, updateCartQuantity, clearCart,
-        placeOrder, cartTotal, cartCount,
+        placeOrder, refreshOrders, ordersLoading, cartTotal, cartCount,
       }}
     >
       {children}
