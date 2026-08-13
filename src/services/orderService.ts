@@ -6,6 +6,8 @@
  * happened to have on screen.
  */
 
+import { Platform } from 'react-native';
+
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://windecker-crm.up.railway.app';
 
 export type OrderStatus =
@@ -65,6 +67,29 @@ export async function fetchOrders(token: string): Promise<CustomerOrder[]> {
   if (!res.ok) throw new Error(await parseError(res, 'Could not load orders'));
   const data = await res.json();
   return data.orders ?? [];
+}
+
+/**
+ * Downloads the full order history as a CSV, for the customer's own
+ * accounting/back-office system. Auth is a bearer token (not a cookie), so
+ * this has to be a fetch + blob download rather than a plain link — a
+ * browser can't attach an Authorization header to a normal navigation.
+ */
+export async function exportOrdersCsv(token: string): Promise<void> {
+  if (Platform.OS !== 'web') throw new Error('Export is available in the web app for now.');
+  const res = await fetch(`${API_BASE_URL}/api/customer/orders/export`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(await parseError(res, 'Could not export order history'));
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `order-history-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 /** Customer-facing wording — internal status names shouldn't leak into the UI. */

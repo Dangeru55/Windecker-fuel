@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  View, Text, FlatList, StyleSheet, RefreshControl, TouchableOpacity,
+  View, Text, FlatList, StyleSheet, RefreshControl, TouchableOpacity, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { COLORS } from '../constants';
 import { CustomerOrder, OrderStatus, statusLabel, statusHint } from '../services/orderService';
+import { showAlert } from '../utils/alert';
 
 /**
  * Real order status, straight from the CRM. This is the half that removes the
@@ -98,6 +99,30 @@ function OrderCard({ order }: { order: CustomerOrder }) {
   );
 }
 
+function ExportButton() {
+  const { exportOrders } = useApp();
+  const [exporting, setExporting] = useState(false);
+  if (Platform.OS !== 'web') return null;
+
+  const onPress = async () => {
+    setExporting(true);
+    try {
+      await exportOrders();
+    } catch (err) {
+      showAlert('Could not export order history', err instanceof Error ? err.message : 'Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <TouchableOpacity onPress={onPress} disabled={exporting} style={styles.exportBtn} activeOpacity={0.8}>
+      <Ionicons name="download-outline" size={15} color={COLORS.primary} />
+      <Text style={styles.exportBtnText}>{exporting ? 'Exporting…' : 'Export CSV'}</Text>
+    </TouchableOpacity>
+  );
+}
+
 export default function OrderHistoryScreen() {
   const { orders, ordersLoading, refreshOrders } = useApp();
 
@@ -126,6 +151,11 @@ export default function OrderHistoryScreen() {
       renderItem={({ item }) => <OrderCard order={item} />}
       contentContainerStyle={styles.list}
       showsVerticalScrollIndicator={false}
+      ListHeaderComponent={
+        <View style={styles.listHeader}>
+          <ExportButton />
+        </View>
+      }
       refreshControl={
         <RefreshControl refreshing={ordersLoading} onRefresh={refreshOrders} tintColor={COLORS.primary} />
       }
@@ -136,6 +166,14 @@ export default function OrderHistoryScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   list: { padding: 20, paddingBottom: 32, maxWidth: 640, width: '100%', alignSelf: 'center' },
+
+  listHeader: { alignItems: 'flex-end', marginBottom: 4 },
+  exportBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+    borderWidth: 1.5, borderColor: COLORS.primary,
+  },
+  exportBtnText: { color: COLORS.primary, fontWeight: '700', fontSize: 13 },
 
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, backgroundColor: COLORS.background },
   emptyIconWrap: {

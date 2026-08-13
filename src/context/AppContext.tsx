@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, CartItem, Order, Product } from '../types';
 import { MOCK_ORDERS, MOCK_PRODUCTS } from '../constants';
 import { fetchLivePrices, formatLastUpdated, invalidatePriceCache, ProductPrice, Destination } from '../services/priceService';
-import { submitOrder, fetchOrders, CustomerOrder } from '../services/orderService';
+import { submitOrder, fetchOrders, exportOrdersCsv, CustomerOrder } from '../services/orderService';
 import * as authService from '../services/authService';
 
 // CRM customer -> app User. One login per company: `name` is the company
@@ -93,6 +93,7 @@ interface AppContextType {
   clearCart: () => void;
   placeOrder: (address: string, notes?: string) => Promise<void>;
   refreshOrders: () => Promise<void>;
+  exportOrders: () => Promise<void>;
   ordersLoading: boolean;
   cartTotal: number;
   cartCount: number;
@@ -320,6 +321,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await refreshOrders(token);
   };
 
+  const exportOrders = async () => {
+    if (!token) throw new Error('Please sign in again.');
+    await exportOrdersCsv(token);
+  };
+
 
   const cartTotal = cart.reduce((sum, i) => sum + i.product.price * i.quantity, 0);
   const cartCount = cart.reduce((sum, i) => sum + i.quantity, 0);
@@ -330,7 +336,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         user, cart, orders, products, priceStatus, pricesLoading, refreshPrices,
         destinations, destinationId, selectDestination, isPreview,
         login, createAccount, logout, addToCart, removeFromCart, updateCartQuantity, clearCart,
-        placeOrder, refreshOrders, ordersLoading, cartTotal, cartCount,
+        placeOrder, refreshOrders, exportOrders, ordersLoading, cartTotal, cartCount,
       }}
     >
       {children}
